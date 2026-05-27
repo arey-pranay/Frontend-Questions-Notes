@@ -1,0 +1,150 @@
+Question
+Design a web news feed application that lets users browse a feed of posts, react to posts, and create new posts.
+
+Requirements
+Render the initial feed quickly and load more posts as the user scrolls.
+Support common feed interactions such as reactions and post creation.
+Handle long-lived sessions, stale data, and common feed performance concerns.
+You do not need to go deep on feed ranking, ads delivery, or the full back-end fan-out/pull architecture.
+
+A well-structured front-end architecture separates concerns across distinct layers, each responsible for a specific set of tasks. Before discussing those layers, there are two decisions to make: where to render the page and how navigation should work after the initial load.
+
+A large-scale feed product can be built using several rendering approaches, each with different tradeoffs in performance, complexity, and infrastructure cost. The main models are server-side rendering (SSR), client-side rendering (CSR), and hybrid rendering.
+
+Server-side rendering (SSR): The server generates the full HTML before sending it to the browser. This leads to faster first paint and stronger SEO because users and crawlers receive meaningful content immediately. Once the HTML is loaded, the client hydrates the page to attach event listeners and enable interactivity.
+Client-side rendering (CSR): The server first delivers a minimal HTML shell and JavaScript bundles. The browser then fetches data and renders the UI on the client. CSR offers great interactivity once loaded because further updates can happen without full page reloads, but the first load is typically slower than SSR and SEO is weaker.
+Hybrid rendering: Hybrid rendering combines SSR and CSR. The initial page is rendered on the server for speed, while dynamic updates happen on the client after hydration.
+For a personalized signed-in feed, the main benefit of rendering on the server is performance, not SEO. The content is already personalized, so search indexing is much less important than keeping the session interactive and responsive.
+
+That makes CSR the best default answer for the home feed. The feed is highly interactive, heavily personalized, and benefits from keeping state alive in the browser over a long-lived session. This is a long-session state-management tradeoff, not a claim that CSR has the fastest cold start. To keep LCP competitive, the CSR shell still needs tight budgets for app-shell bytes, initial feed data, and critical JavaScript. SSR or hybrid rendering can still be good choices for public post pages, marketing surfaces, or logged-out experiences, but the signed-in home feed should default to CSR.
+
+For a feed product, SPA is the stronger default. The biggest reason is shared client state. Most users open a post from the feed itself. In an SPA, the main post details such as text, media, and author data may already be in the store, so navigation to the post detail page can feel nearly instant, and only replies or comments need to be fetched after navigation.
+
+In an MPA, navigation tears down the current page state and rebuilds it from scratch. That makes transitions feel slower and discards useful in-memory state such as cached entities, optimistic updates, composer drafts, and scroll position.
+
+With rendering and navigation decided, the front end can be broken down into four layers: View, Store, Data access, and Server.
+
+View: This is what users interact with directly. It includes the feed page, post detail page, feed posts, and the post composer. The View layer renders data from the store and triggers user actions such as reacting to a post or composing a new one.
+Store: The store is the source of truth for client-side state. It holds feed data, posts, users, composer state, optimistic updates, and freshness state. It keeps different parts of the interface consistent and lets the UI remain responsive even when the network is slow.
+Data access: This layer abstracts communication with the backend APIs. It handles network requests, response parsing, caching policy, pagination, retries, and transformations that convert raw API responses into structures that are easy for the store to consume.
+Server: The server exposes HTTP endpoints for fetching the feed, fetching a single post, creating posts, uploading media, and performing actions such as reactions and shares.
+
+This layered architecture creates a clean separation of responsibilities. The View focuses on presentation, the Store manages state, the Data access layer handles synchronization and networking, and the Server provides canonical data.
+
+In an SPA, the Store and Data access layers are initialized once on first load, then persist and update throughout the session as users scroll, navigate, and interact with posts.
+
+In practice, the View layer might use React, Vue, or Svelte. The Store might use Redux, Zustand, or Jotai. The Data access layer might use RTK Query, TanStack Query, Relay, or Apollo Client.
+
+type PostBody = {
+  text: string;
+  entities: Array<{
+    type: 'mention' | 'hashtag' | 'link';
+    start: number;
+    end: number;
+    userId?: string;
+    url?: string;
+  }>;
+};
+
+type ReactionType = 'like' | 'love' | 'haha' | 'wow' | 'sad' | 'angry';
+
+type EngagementSummary = {
+  reactions: Record<ReactionType, number>;
+  totalReactions: number;
+  commentCount: number;
+  shareCount: number;
+};
+
+type Post = {
+  id: string;
+  authorId: string;
+  body: PostBody;
+  mediaIds: string[];
+  engagementSummary: EngagementSummary;
+  viewerReaction: ReactionType | null;
+  viewerHasShared: boolean;
+  createdAt: number;
+};
+
+User entity
+The User entity represents authors and other participants that appear throughout the feed. It includes metadata such as display name, handle, profile photo, verification status, and relationship flags that describe how the current viewer relates to that user.
+
+
+type RelationshipToViewer = {
+  isFriend?: boolean;
+  isFollowing?: boolean;
+  isMuted?: boolean;
+  isBlocked?: boolean;
+};
+
+type User = {
+  id: string;
+  name: string;
+  handle: string;
+  profilePhotoUrl: string;
+  isVerified: boolean;
+  relationshipToViewer: RelationshipToViewer;
+};
+
+Because user data is shared across many posts and UI surfaces, it should be treated as a globally cached entity rather than duplicated inside each post. If a user's display name, avatar, or relationship state changes, every post that references that user can reflect the change immediately without duplicating and updating nested user blobs everywhere. This also avoids repeated network requests for the same user data across the feed, post detail surfaces, and related UI.
+
+The Feed entity represents the ordered feed itself. It should be thought of as a list of post IDs annotated with pagination and freshness metadata rather than as a list of fully nested post objects.
+
+
+type Feed = {
+  id: string;
+  postIds: string[];
+  olderCursor: string | null;
+  newerCursor: string | null;
+  hasOlder: boolean;
+  hasNewer: boolean;
+  lastFetchedAt: number | null;
+};
+This structure fits how feed products actually behave. As the user scrolls down, older posts are fetched and appended. When the feed becomes stale, newer posts can be fetched separately and merged at the top later without rebuilding the entire feed from scratch. In other words, the feed is dynamic: older posts are loaded at the bottom while newer posts may be added to the top later.
+
+
+normalized-store-structure
+
+type Media = {
+  id: string;
+  src: string;
+  previewSrc?: string;
+  alt: string;
+  width: number;
+  height: number;
+};
+
+type ComposerDraft = {
+  body: PostBody;
+  mediaIds: string[];
+  uploadState: 'idle' | 'uploading' | 'failed';
+  submitState: 'idle' | 'submitting' | 'submitted' | 'failed';
+};
+
+type Store = {
+  feedsById: Record<string, Feed>;
+  postsById: Record<string, Post>;
+  usersById: Record<string, User>;
+  mediaById: Record<string, Media>;
+  composerDraft: ComposerDraft;
+};
+
+Feed identity should come from the authenticated session
+A caller-supplied userId is not a safe source of truth. Trusting the session instead avoids security mistakes and unnecessary API differences based on who the caller claims to be.
+
+Offset-based pagination relies on numerical offsets to determine which results to fetch next. For example, a request might specify ?offset=20&limit=10 to get the next ten posts after the first twenty.
+
+Offset-based pagination is straightforward and easy to implement, but it becomes inefficient and unreliable as the dataset grows or changes frequently. When new posts are inserted into the feed, offsets can shift, leading to duplicate or missing items.
+
+This is why offset-based pagination is a better fit for relatively static lists such as search results, where jumping to a specific page matters more than handling real-time inserts cleanly.
+
+Cursor-based pagination uses a unique identifier such as a post ID or timestamp as a cursor that marks the boundary between pages. Instead of asking for "the next 10 results after offset 20", the client requests "the next 10 results after post ID X."
+
+Cursor-based pagination is more stable and efficient because it does not depend on the dataset's size or ordering at query time. It works well in environments where data is frequently updated, such as a news feed where new posts appear constantly and older posts can be deleted, re-ranked, or refreshed.
+
+
+For a news feed, cursor-based pagination is the clear choice. It fits dynamic ordered feeds where new posts can be inserted, old posts can disappear, and ranking can change between requests, all while avoiding inconsistencies caused by real-time updates and scaling efficiently across large datasets.
+
+It also enables bidirectional navigation. Users can scroll down to fetch older posts while the client separately checks for newer posts at the top when the feed becomes stale, without re-fetching or skipping content.
+
+By combining cursor-based pagination with techniques like infinite scrolling and background prefetching, the feed can remain continuous and responsive even when large volumes of content are loaded behind the scenes.
