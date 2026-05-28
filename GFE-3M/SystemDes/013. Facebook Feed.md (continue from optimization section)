@@ -148,3 +148,30 @@ For a news feed, cursor-based pagination is the clear choice. It fits dynamic or
 It also enables bidirectional navigation. Users can scroll down to fetch older posts while the client separately checks for newer posts at the top when the feed becomes stale, without re-fetching or skipping content.
 
 By combining cursor-based pagination with techniques like infinite scrolling and background prefetching, the feed can remain continuous and responsive even when large volumes of content are loaded behind the scenes.
+
+Dynamic loading count
+Whichever pagination style is used, the feed API typically exposes a configurable count or limit parameter alongside the cursor. We can use that flexibility to adapt how many posts to load based on the browser viewport height.
+
+If the first feed request is initiated on the client in a CSR flow, the app can read window.innerHeight before requesting data and size the initial page more accurately. If the initial feed response is rendered on the server, the server does not know the viewport height ahead of time, so it usually overfetches slightly. Subsequent fetches can then adapt based on the measured viewport height.
+
+Writes need idempotency keys. Post creation, reactions, and shares can be retried by the client, by the service worker after reconnect, or by a proxy on a flaky network, so the server should treat a key seen twice as the same write, returning the original result instead of creating a duplicate post. Generate the key on the client (e.g. a UUID attached to the request body or an Idempotency-Key header) at the moment the user submits, not at send time, so retries carry the original key.
+
+Attach an idempotency key at submit time for every mutating request
+Generate the key when the user submits, not when the request fires, so any retry, by the client, the service worker, or a network layer, carries the same key and the server can safely deduplicate.
+
+Upload media binaries first, then create the post by mediaId
+For posts with attachments, upload the binary first, get a mediaId back, then include that ID when creating the post. In production, the upload step often involves getting a presigned URL so the client uploads directly to blob storage, keeping large uploads off the application server and letting post creation stay a small JSON request.
+
+Feed performance depends on several parts of the page. This section covers the main areas where front-end choices affect scroll performance, write reliability, and long-running sessions:
+
+Feed list: This section explains how the feed keeps long scrolling sessions smooth with virtualization, infinite scrolling, loading indicators, scroll restoration, stale-feed handling, and cross-tab invalidation.
+Feed post optimizations: This section covers how individual posts render efficiently and safely, including data-driven renderer loading, mentions, hashtags, rich text, images, optimistic updates, timestamps, icons, and truncation.
+Feed composer optimizations: This section discusses how users draft posts with rich text, safe paste handling, entity serialization, and optional composer tools that can be loaded only when needed.
+Networking, resilience, offline, and retries: This section explains how the client handles errors, offline reads, outbox-backed writes, retries, and idempotency so user actions are not lost.
+Comments and live updates: This section covers comment pagination, optimistic comment updates, and real-time delivery strategies for comments and reaction counts.
+Performance and metrics: This section ties the earlier performance techniques to Core Web Vitals, performance budgets, JavaScript loading strategy, main-thread work, and measurement.
+Accessibility: This section covers feed semantics, keyboard navigation, focus management, accessible dynamic updates, live regions, and reduced-motion handling.
+Internationalization (i18n): This section discusses RTL layouts, bidirectional post text, pluralization, localized counts, and language-aware formatting.
+Telemetry and observability: This section covers impression tracking, dwell time, real-user monitoring, error reporting, and feature-flagged rollout.
+This section is intentionally deeper than the minimum interview answer
+In most interviews, cover the core architecture first and use these optimizations only as follow-up depth when the interviewer asks you to go further.
