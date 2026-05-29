@@ -175,3 +175,120 @@ Internationalization (i18n): This section discusses RTL layouts, bidirectional p
 Telemetry and observability: This section covers impression tracking, dwell time, real-user monitoring, error reporting, and feature-flagged rollout.
 This section is intentionally deeper than the minimum interview answer
 In most interviews, cover the core architecture first and use these optimizations only as follow-up depth when the interviewer asks you to go further.
+
+the feed items list can easily grow very long quickly, the number of feed items can cause performance issues in terms of DOM size, rendering, and browser memory usage.
+
+A virtualized list renders only the posts in the viewport plus a small overscan window. In practice, Facebook replaces the contents of off-screen feed posts with spacer <div>s whose inline height (e.g. style="height: 300px") matches the measured height of the real content, so scroll position is preserved while the heavy subtree is removed from the DOM. This improves rendering performance in terms of:
+
+Browser painting: Fewer DOM nodes to render and fewer layout computations to be made.
+Virtual DOM reconciliation: In frameworks that use a virtual DOM (e.g. React, which Facebook uses to render the feed), a simpler empty subtree makes diffing against the previous tree cheaper and produces a smaller set of real DOM mutations. Virtualization works best when each item has a stable key and the client keeps track of measured heights carefully
+
+Infinite scrolling
+An infinite scrolling feed works by fetching the next set of posts when the user has scrolled to the end of their current loaded feed. This results in the user seeing a loading indicator and a short delay where the user has to wait for the new posts to be fetched and displayed.
+A trigger distance of around one viewport height should be sufficient for most cases. The ideal distance is short enough to avoid false positives and wasted bandwidth but also wide enough to load the rest of the contents before the user scrolls to the bottom of the page. 
+
+Listen for the scroll event: Add a scroll event listener (ideally throttled) to the page or a timer (via setInterval) that checks whether the position of the marker element is within a certain threshold from the bottom of the page. The position of the marker element can be obtained using Element.getBoundingClientRect.
+Intersection Observer API: Use the Intersection Observer API to monitor when the marker element is entering or exiting another element or intersecting by a specified amount.
+The Intersection Observer API is a native browser API and is preferred over Element.getBoundingClientRect().
+Avoid silently prepending new posts while the user is reading
+A banner such as "New posts available" is usually safer because it preserves reading position and lets the user choose when to merge newer content.
+
+A user with two tabs open introduces the mirror problem: reacting in one tab leaves the other showing stale state. The simplest cross-tab story is a BroadcastChannel that the data access layer writes to whenever it mutates a canonical entity; peer tabs subscribe and re-read the affected record from the shared store. Where a local database like IndexedDB backs the store, the Web Locks API can elect a leader tab to own long-lived socket or polling state, with followers reading from shared storage.
+Facebook fetches data from the server using Relay, which is a JavaScript-based GraphQL client. Relay couples React components with GraphQL to allow React components to declare exactly which data fields are needed, and Relay will fetch them via GraphQL and provide the components with data. Relay has a feature called data-driven dependencies via the @match and @module GraphQL directives. The GraphQL payload can include metadata describing which renderer module matches the returned data, and the client then loads that module dynamically. This avoids shipping every renderer upfront and reduces the need for a separate render-time discovery step after the data shape is known.
+
+
+# Sample GraphQL query to demonstrate data-driven dependencies.
+... on Post {
+  content @match {
+    ...TextPostFragment @module(name: "TextComponent.react")
+    ...ImagePostFragment @module(name: "ImageComponent.react")
+  }
+
+What format should the message be in so that it can store data about mentions/hashtags? Let's discuss the possible formats and their pros and cons.
+
+Entity ranges (recommended): Store the plaintext once and attach metadata describing which character ranges correspond to mentions, hashtags, or links.
+
+
+{
+  "text": "Check out @greatfrontend at https://www.greatfrontend.com #webdev",
+  "entities": [
+    {
+      "type": "mention",
+      "start": 10,
+      "end": 24,
+      "userId": "u_99"
+    },
+    {
+      "type": "link",
+      "start": 28,
+      "end": 57,
+      "url": "https://www.greatfrontend.com"
+    },
+    {
+      "type": "hashtag",
+      "start": 58,
+      "end": 65
+    }
+  ]
+}
+
+Rendering rich text safely
+Structured entity-range payloads close the storage-level XSS door but do not close all the render-time doors. A feed product renders user-supplied text, user-supplied link URLs, and sometimes user-supplied media captions, and each of those is a potential vector.
+
+Output encode the plaintext. Modern frameworks (React, Vue, Svelte) escape text interpolation by default. The only way to reintroduce the XSS risk is to opt into dangerouslySetInnerHTML or equivalent — don't, unless the content has already passed through a sanitizer like DOMPurify and the allowed tag list is explicit.
+Validate href URL schemes. A mention or link entity can carry a javascript:, data:, or vbscript: URL that executes script when the user clicks. Before rendering an <a href>, check the URL scheme against an allowlist of http, https, and mailto, and reject or strip everything else.
+Harden outbound links. Use rel="noopener noreferrer" on every link that opens a new tab to prevent window.opener tab-nabbing, and use target="_blank" only when the UX genuinely benefits.
+Set a Content Security Policy. A CSP with default-src 'self', a tight script-src, and an img-src allowlist that includes only the product's media CDN is the defence-in-depth layer that catches what passes the other controls. Restrictive CSPs are especially important for feed products because they render links, images, and embeds from arbitrary third-party sources.
+Since there can be images in a feed post, we can also briefly discuss some image optimization techniques:
+
+Content Delivery Network (CDN): Use a CDN to host and serve images for faster loading performance.
+Modern image formats: Use modern image formats such as AVIF and WebP for significantly better compression than JPEG or PNG. AVIF typically produces the smallest files at a given quality but has slightly narrower browser support than WebP, so pair them with a <picture> fallback chain (AVIF → WebP → JPEG/PNG).
+<img>s should use proper alt text
+Lazy loading
+Image loading based on device screen properties
+Reserve space before image load
+Adaptive image loading based on network speed
+Progressive placeholders
+Use blurred previews or LQIP/BlurHash-style placeholders so users get immediate feedback that media is loading.
+
+Lazy load code that is not needed for initial render
+Many interactions with a feed post are not needed on initial render:
+
+Reactions popover
+Dropdown menu revealed by the top-right ellipsis icon button, which is usually meant to conceal additional actions
+Hover cards or richer profile previews
+
+Optimistic updates
+Optimistic updates is a performance technique where the client immediately reflects the updated state after a user interaction that hits the server and optimistically assumes that the server request succeeds, which should be the case for most requests. This gives users instant feedback and improves the perceived performance. If the server request fails, we can revert the UI changes and display an error message.
+
+For a news feed, optimistic updates can be applied for reaction interactions by immediately showing the user's reaction and an updated total count of the reactions.
+
+The clean success/failure picture above hides the edge cases worth naming in an interview. The server response is always authoritative: if the returned engagementSummary disagrees with the optimistically predicted counts, the server value wins, even if the UI jumps visibly. Racing mutations on the same post need a last-writer-wins or server-sequence-number rule; two rapid reaction taps should not interleave into an inconsistent state. Offline writes should land in the outbox (covered in the resilience section below) rather than silently vanish; the UI shows the optimistic state with a pending indicator until the write eventually drains. And idempotency keys on the original request keep retries safe across all of this because the server treats a replayed reaction or post creation as the same event rather than a duplicate.
+
+Multilingual timestamps: Globally popular sites like Facebook and Twitter have to ensure their UI works well for different languages. There are a few ways to support multilingual timestamps:
+
+Server returns the raw timestamp: The server returns the raw timestamp and the client renders it in the user's language. This approach is flexible but requires the client to contain the grammar rules and translation strings for different languages, which can amount to significant JavaScript size depending on the number of supported languages.
+Server returns the translated timestamp: This requires processing on the server, but you don't have to ship timestamp formatting rules for various languages to the client. However, since translation is done on the server, clients cannot manipulate the timestamp on their own.
+Intl API: Modern browsers can leverage Intl.DateTimeFormat() and Intl.RelativeTimeFormat() to transform a raw timestamp into translated datetime strings in the desired format.
+Refresh recent relative timestamps with a low-frequency timer
+Without it, "2 minutes ago" can sit on screen for hours in a long-lived session. Older timestamps can stay static because the next bucket boundary (days, weeks, months) is far enough away that the user is unlikely to notice drift.
+
+Icon rendering
+Icons are needed within the action buttons of a post for liking, commenting, sharing, etc. There are a few ways to render icons:
+
+Approach	Pros	Cons
+Separate image	Simple to implement.	Multiple download requests per image.
+Spritesheet	One HTTP request to download all icon images.	Complicated to set up.
+Icon fonts	Scalable and crisp.	Glyphs are rendered as text characters (often in the Unicode Private Use Area), which can confuse screen readers and be affected by text styling overrides. Flash of unstyled/invisible text (FOUT/FOIT) while the font loads.
+SVG	Scalable and crisp. Cacheable.	Flickering when file is being downloaded. One download request per image.
+Inlined SVG	Scalable and crisp.	Not cacheable independently; repeats inflate HTML/JS payload size.
+Facebook and Twitter use inlined SVGs, and that also seems to be the trend these days. This technique is not specific to news feeds; it's relevant to almost every web app.
+
+Post truncation
+Truncate posts that have very long message content and reveal the rest behind a "See more" button.
+
+For posts with a large amount of activity (e.g. many likes, reactions, shares), abbreviate counts appropriately instead of rendering the raw count so that it's easier to read and the magnitude is still sufficiently conveyed:
+
+Good: John, Mary and 103K others
+Bad: John, Mary and 103,312 others
+This summary line can be constructed either on the server or on the client. The pros and cons of doing it on the server vs the client are similar to those of timestamp rendering. However, you should definitely not send down the entire list of users if it's huge, as it's likely not needed or useful.
