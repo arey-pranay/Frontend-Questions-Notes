@@ -292,3 +292,134 @@ For posts with a large amount of activity (e.g. many likes, reactions, shares), 
 Good: John, Mary and 103K others
 Bad: John, Mary and 103,312 others
 This summary line can be constructed either on the server or on the client. The pros and cons of doing it on the server vs the client are similar to those of timestamp rendering. However, you should definitely not send down the entire list of users if it's huge, as it's likely not needed or useful.
+
+WYSIWYG stands for "What You See Is What You Get."
+
+Rich text for hashtags and mentions
+When drafting a post in the composer, it'd be nice to have a WYSIWYG editing experience that looks like the result and contains hashtags and mentions. However, <input>s and <textarea>s only allow input and display of plain text. The contenteditable attribute turns an element into an editable rich text editor.
+However, <input>s and <textarea>s only allow input and display of plain text. The contenteditable attribute turns an element into an editable rich text editor.
+However, it is not a good idea to use contenteditable="true" as-is in production because it comes with many issues. It'd be better to use battle-tested rich text editor libraries.
+Meta has built open source rich text editor libraries like Draft.js (deprecated) and Lexical. Other popular open source alternatives include TipTap and Slate.
+A composer can use a rich tree model for selection and undo, while the API and storage format benefits from being compact and easy to render. Serialize between the two at the boundary instead of forcing one shape to do both jobs. This also allows the same model to be rendered on platform-specific surfaces like web / iOS / Android
+
+Non-crucial features where the code can be lazy loaded on demand:
+
+Image uploader
+GIF picker
+Emoji picker
+Sticker picker
+Background images
+These features are good candidates for interaction-based loading because many users will never open them in a given session, yet they often bring sizable JavaScript and asset costs.
+
+Networking, resilience, offline, and retries
+Users can lose connectivity, switch networks, or close the tab while a request is still pending. The data access layer should handle those cases so the UI stays usable and user actions are not lost.
+Error states
+Clearly display error states if any network requests have failed, or when there's no network connectivity.
+
+Reading offline
+A Service Worker is the foundation. On first load it caches the app shell so repeat visits boot instantly, and it can apply a cache-first strategy for the last N feed pages plus the media of the most recently visible posts. A user who opens the app on a subway train should see the last feed they scrolled through, with posts clearly flagged as cached. Third-party query libraries like TanStack Query persist their cache to IndexedDB for the same reason: the client-side store survives tab reloads and the feed can render from cache while a background fetch revalidates.
+
+Writing offline with an outbox
+For writes, reacting, sharing, or creating a post, the client should never drop a user's action because the tab lost connectivity for three seconds. The standard pattern is an outbox: when the composer submits, the data access layer writes the pending mutation to IndexedDB keyed by its idempotency key, applies the optimistic update to the store, and fires the network request. If the request succeeds, the outbox entry is dropped. If it fails, it stays in the outbox and is retried.
+
+The Background Sync API lets the Service Worker flush the outbox after the tab has been closed, though browser support is uneven (Safari notably lacks it), so treat it as a best-effort optimization and keep an in-tab retry loop as the correctness path.
+
+Retry strategy
+Retry with exponential backoff plus jitter is the standard approach: doubling delays with a random offset prevents a thundering herd of clients all reconnecting in lockstep after a brief outage. Cap the retry count so a permanently broken request surfaces as an error instead of retrying forever, and short-circuit retries on non-retryable HTTP status codes (400, 401, 403, 404, 422) that will not succeed on a second attempt.
+
+Combine this with the request deduplication and idempotency keys from the API section, and the write path becomes safe under any mix of client retries, Service Worker retries, and network middlebox retries. The server always sees the same key and returns the same response.
+
+The common ways to implement live updates on a client include:
+
+Short polling: Short polling is a technique in which the client repeatedly sends requests to the server at fixed intervals to check for updates. The connection is closed after each request, and the server responds immediately with the current state or any available updates. While short polling is straightforward to implement, it may result in higher network traffic and server load compared to the more advanced techniques mentioned below.
+Long polling: Long polling extends on the idea of short polling by keeping the connection open until new data is available. While simpler to implement, it may introduce latency and increased server load compared to other approaches.
+Server-Sent Events (SSE): SSE is a standard web technology that enables servers to push updates to web clients over a single HTTP connection. It's a simple and efficient mechanism for real-time updates, particularly well-suited for scenarios where updates are initiated by the server.
+WebSockets: WebSockets provide a full-duplex communication channel over a single, long-lived connection. This bidirectional communication allows both the server and the client to send messages to each other at any time. WebSockets are suitable for applications that require low latency and high interactivity.
+
+For high-traffic posts (celebrities, politicians, breaking news), downgrade to count-only updates. Pushing every event for every loaded post wastes both client CPU and server fan-out, and individual comment-level updates become unreadable on hot posts anyway.
+
+Performance and metrics
+A long-lived, interaction-heavy feed should be measured by the Core Web Vitals the user actually experiences. Largest Contentful Paint (LCP) captures how quickly the first useful feed content appears. Interaction to Next Paint (INP) captures whether scrolling, reactions, menus, and live updates stay responsive throughout the session. Cumulative Layout Shift (CLS) captures whether images, embeds, and skeletons keep the page stable as content hydrates.
+
+INP is the most important metric after the initial load. A feed session can last for tens of minutes and involve thousands of interactions, so main-thread jank compounds in a way that LCP alone cannot expose.
+
+Performance budgets
+Concrete targets make performance tradeoffs easier to evaluate. A reasonable interview-level budget is p75 LCP under 2.5 seconds on a mid-range mobile device, p75 INP under 200 ms, and CLS under 0.1 across the session. These metrics should be segmented by device class and network type, because p75 on a mid-range Android device over 4G tells a different story from p75 on a desktop over fiber.
+ the principle is stable: do not ship every post renderer, composer tool, popover, and live-update client in the initial bundle.
+
+Performance techniques covered so far
+The earlier sections already introduced the major feed performance techniques:
+
+Virtualization keeps off-screen posts out of the DOM while spacer elements preserve scroll position.
+Intersection Observer drives infinite-scroll triggers, prefetch boundaries, lazy media loading, and impression visibility without synchronous scroll work.
+Skeletons and reserved media dimensions reduce perceived wait time and prevent layout shifts as posts and images load.
+Scroll restoration and cached entities make feed-to-detail navigation feel instant when users return to the feed.
+Adaptive request sizing uses viewport height to choose an initial count that fills the screen without excessive overfetching.
+Short-lived caching and revalidation let the client paint recently seen feed data immediately while checking whether the server has a fresher version.
+Request deduplication and cancellation prevent duplicate fetches and avoid writing superseded responses back into the store.
+Data-driven post renderers load only the JavaScript needed for the post formats that appear in the feed.
+Image optimization uses CDN delivery, modern formats, responsive sources, lazy loading, and progressive placeholders.
+Lazy interaction code keeps reaction pickers, hover cards, menus, and richer composer tools out of the initial path.
+Service Worker cached reads let repeat visits and offline sessions render the app shell, recent feed pages, and recently viewed media.
+Optimistic updates and the offline outbox make writes feel immediate while preserving correctness across retries and flaky network states.
+Those techniques improve different parts of the experience: first content, scroll smoothness, visual stability, navigation speed, and perceived write latency. The rest of this section explains how to budget, load, and measure them.
+
+Facebook splits JavaScript loading into visual-priority tiers
+Tier 1 gets pixels on screen, Tier 2 makes the visible feed complete and interactive, and Tier 3 covers everything that can wait until after display or user intent.
+
+In a feed SPA, route-level splitting still matters for surfaces such as post detail, profile, notifications, and settings. For the home feed's first load, feature-level and interaction-level splitting usually matter more:
+
+Route-level chunks: Load secondary routes only when the user is likely to navigate to them.
+Data-driven renderer chunks: Load the renderer that matches the post formats returned by the feed payload instead of shipping every renderer upfront.
+Interaction-triggered chunks: Load reaction pickers, hover cards, media editors, and composer tools only when the user shows intent.
+Idle or intent prefetch: Prefetch likely chunks on hover, pointer intent, or idle time, while gating prefetch on device capability and network quality.
+Code splitting helps LCP by reducing initial JavaScript, but it can hurt INP if the first tap on a reaction picker or menu waits for a large chunk to download, parse, and execute. Common interactions should be prefetched after the first render or during idle time so the interaction path stays responsive.
+
+
+Once the critical bytes are under control, protect INP by keeping expensive work off the main thread. Parsing large feed payloads, rendering rich text from entity ranges, running mention or hashtag processing, decoding media metadata, and diffing large subtrees are all candidates for a Web Worker or for splitting across animation frames with scheduler.postTask().
+
+The earlier virtualization and Intersection Observer recommendations matter for the same reason: they reduce synchronous layout, paint, and scroll work. Avoid onScroll handlers that touch layout-forcing APIs like getBoundingClientRect(), and let the browser batch visibility checks when possible.
+
+For off-screen containers that cannot be fully virtualized, content-visibility: auto is a useful secondary primitive. The browser can skip layout and paint for content outside the viewport, with a contain-intrinsic-size hint to reserve space. It is not a replacement for virtualization at feed scale, but it works well for surrounding chrome such as long sidebars or collapsed comment threads.
+
+Instrument what you optimize. The web-vitals library exposes LCP, INP, and CLS from real browser sessions, and those values should be sent to a real-user monitoring pipeline.
+
+Accessibility
+Accessibility is part of the core feed design because infinite scrolling, live updates, virtualization, and reaction menus can all break keyboard and screen-reader workflows if they are treated as visual-only features.
+
+Feed list
+The outer feed container should identify itself to assistive technology and give keyboard and screen-reader users a way to skip past preceding chrome.
+
+Add role="feed" to the feed HTML element.
+Add a clear label such as aria-label="Home feed" so assistive technology can identify the surface.
+Add a skip link near the start of the document order so keyboard and screen-reader users can jump directly to the feed without tabbing through all preceding chrome.
+
+Feed posts
+Each post should communicate its role and boundary to screen readers, while keeping its interactive controls reachable in the normal tab order.
+
+Add role="article" to each feed post HTML element.
+aria-labelledby="<id>" where the HTML tag containing the feed author name has that id attribute.
+Interactive controls within the feed post should be keyboard reachable and use the appropriate role. Only add tabindex="0" to the entire post container when the whole card itself is intended to behave as a single interactive target.
+When navigating to a post-detail surface, tabindex="-1" can be useful on the heading or main content container so focus can be moved there programmatically without cluttering the normal tab order.
+Prefer native interactive elements like <button> and <a> over clickable <div>s whenever possible.
+Feed interactions
+Reactions, menus, and other controls inside a post must be usable without a pointer, and their affordances should stay discoverable to keyboard and screen-reader users.
+
+Facebook has a number of news feed-specific shortcuts to help users navigate between posts and perform common actions. They are super handy. Try it for yourself by hitting the "Shift + ?" keys on facebook.com.
+
+
+
+Keyboard shortcuts are a great power-user enhancement, but they should complement standard keyboard navigation rather than replace it. The feed still needs a predictable tab order, focus management, and discoverable controls even for users who never use shortcuts.
+
+Source: Making Facebook.com accessible to as many people as possible
+
+On the Facebook website, users can get more reaction options by hovering over the "Like" button. To allow the same functionality for keyboard users, Facebook displays a button that only appears on focus, and the reactions menu can be opened via that button.
+Icon-only buttons should have aria-labels if there are no accompanying labels (e.g. Twitter).
+Visible focus indicators should always be preserved so users can tell which element is currently active.
+Ensure interactive targets meet the minimum touch-target size (roughly 44×44 CSS pixels per WCAG 2.5.5) so reactions, menus, and action buttons stay reachable on mobile and for users with low motor precision.
+Dynamic updates and motion
+Dynamic content in a feed, including newly arrived posts, changing reaction counts, and the "New posts available" banner, must be announced to assistive technology without hijacking the user's focus or reading position. Use a polite live region for non-urgent changes, and reserve assertive announcements for true errors.
+
+Wrap the stale-feed banner in aria-live="polite" so screen readers announce "3 new posts available" after the user finishes their current utterance rather than interrupting.
+Reaction counts and other numeric updates on already-rendered posts should update the accessible name rather than fire a separate announcement — a screen reader narrating every count bump becomes unusable on a hot post.
+Use aria-live="assert
