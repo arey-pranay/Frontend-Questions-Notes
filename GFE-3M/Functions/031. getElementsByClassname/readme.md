@@ -1,4 +1,4 @@
-#✅ Commented Solution
+# ✅ Commented Solution
 
 ```ts
 export default function getElementsByClassName(
