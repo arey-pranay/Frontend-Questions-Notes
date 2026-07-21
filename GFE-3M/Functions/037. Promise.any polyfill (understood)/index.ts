@@ -22,3 +22,18 @@ export default function promiseAny<T>(iterable: Array<T>): Promise<T> {
   });
   return ans;
 }
+
+// without async-await function usage
+
+// return new Promise((resolve, reject) => {
+//   iterable.forEach((item, index) => {
+//     Promise.resolve(item)
+//       .then(resolve)
+//       .catch((err) => {
+//         errors[index] = err;
+//         if (++rejectCount === iterable.length) {
+//           reject(new AggregateError(errors));
+//         }
+//       });
+//   });
+// });
