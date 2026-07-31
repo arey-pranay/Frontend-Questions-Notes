@@ -1,0 +1,155 @@
+# CSS Box Model
+
+## Key Idea
+Every HTML element is rendered as a rectangular box consisting of:
+- **Content** – actual text, image, etc.
+- **Padding** – space inside the border.
+- **Border** – surrounds the padding/content.
+- **Margin** – space outside the border.
+
+> **Margin is outside the box** and does **not** contribute to the element's actual dimensions.
+
+---
+
+## Box Model Structure
+
+```
++---------------------------+
+|         Margin            |
+|  +---------------------+  |
+|  |      Border         |  |
+|  |  +---------------+  |  |
+|  |  |   Padding     |  |  |
+|  |  | +-----------+ |  |  |
+|  |  | | Content   | |  |  |
+|  |  | +-----------+ |  |  |
+|  |  +---------------+  |  |
+|  +---------------------+  |
++---------------------------+
+```
+
+---
+
+## Default Box Model (`content-box`)
+
+```css
+box-sizing: content-box;
+```
+
+- `width` and `height` apply **only to the content**.
+- Padding and border are **added** outside those dimensions.
+
+```css
+.box {
+  width: 100px;
+  padding: 10px;
+  border: 5px solid;
+}
+```
+
+**Actual width:**
+
+```
+100 + 10 + 10 + 5 + 5 = 130px
+```
+
+---
+
+## Border Box (`border-box`)
+
+```css
+box-sizing: border-box;
+```
+
+- `width` and `height` include:
+  - Content
+  - Padding
+  - Border
+- Margin is still excluded.
+
+```css
+.box {
+  width: 100px;
+  padding: 10px;
+  border: 5px solid;
+}
+```
+
+**Actual width:** `100px`
+
+**Content width:**
+
+```
+100 - 10 - 10 - 5 - 5 = 70px
+```
+
+---
+
+## Common Global Reset
+
+Most modern projects use:
+
+```css
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+```
+
+Used by frameworks like:
+- Tailwind CSS
+- Bootstrap
+- Bulma
+
+This makes layouts much easier to reason about since declared dimensions match the rendered size.
+
+---
+
+## Box Model Rules
+
+- If `width` isn't specified, most block elements expand to fill the parent's available width.
+- If `height` isn't specified, height grows with the content.
+- `max-width` limits expansion.
+- Inline elements (e.g. `span`) don't automatically stretch to the parent's width.
+- Some elements (`table`, `input`, `figure`) have intrinsic/default sizing behavior.
+
+---
+
+## Margin & Border Behavior
+
+### Borders
+- Never collapse.
+- Every element renders its own border independently.
+
+### Margins
+- Only **vertical margins** between adjacent block elements can collapse.
+- Horizontal margins never collapse.
+- When margins collapse, only the **larger** margin is applied.
+
+---
+
+## Practical Usage
+
+✅ Use `border-box` for almost all application layouts.
+
+Use `content-box` only when you specifically need the content area to remain a fixed size regardless of padding or border (rare).
+
+---
+
+## Interview Notes
+
+- **Default `box-sizing` is `content-box`.**
+- **`border-box` changes how width/height are calculated, not margin behavior.**
+- **Margins are outside the box** and never count toward an element's width or height.
+- **Padding and border** affect total size only in `content-box`.
+- Vertical margin collapsing is one of the most common CSS interview questions.
+
+---
+
+## TL;DR
+
+- **content-box:** `width = content only`
+- **border-box:** `width = content + padding + border`
+- **Margin is always outside the box**
+- **Most projects globally use `box-sizing: border-box` for predictable layouts**
