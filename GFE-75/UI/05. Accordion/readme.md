@@ -1,7 +1,3 @@
-Here are concise **interview/GFE-style notes** for this **Accordion** implementation.
-
----
-
 # Accordion
 
 An accordion lets users **expand and collapse sections of content**.
