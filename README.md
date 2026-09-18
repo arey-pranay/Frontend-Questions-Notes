@@ -17,7 +17,7 @@
   <img src="https://img.shields.io/github/repo-size/arey-pranay/Frontend-Questions-Notes" alt="Repo size" />
   <img src="https://img.shields.io/github/last-commit/arey-pranay/Frontend-Questions-Notes" alt="Last commit" />
   <img src="https://img.shields.io/badge/coding%20challenges-39-blue" alt="39 coding challenges" />
-  <img src="https://img.shields.io/badge/quiz%20notes-11-informational" alt="11 quiz notes" />
+  <img src="https://img.shields.io/badge/quiz%20notes-12-informational" alt="12 quiz notes" />
   <img src="https://img.shields.io/badge/foundation%20notes-18-success" alt="18 foundation notes" />
 </p>
 
@@ -79,7 +79,7 @@ Frontend-Questions-Notes
 │   └── SystemDes/           2  — Facebook Feed (parts 1–2)
 ├── GFE-75/                 Blind 75 fast track
 │   ├── Functions/           3  — polyfills & type utilities
-│   ├── Quiz/               10  — CSS, DOM, scope, storage…
+│   ├── Quiz/               11  — CSS, DOM, scope, storage…
 │   └── UI/                  4  — accordion, progress bar, layout
 ├── DevTools-1M/            1-month DevTools.tech track
 │   ├── Functions/           2  — nested resolve, employees
@@ -90,7 +90,7 @@ Frontend-Questions-Notes
 | Track | Coding | UI | Quiz / theory | System design |
 |---|---:|---:|---:|---:|
 | [`GFE-3M`](GFE-3M) | 33 | 7 | 1 | 2 |
-| [`GFE-75`](GFE-75) | 3 | 4 | 10 | — |
+| [`GFE-75`](GFE-75) | 3 | 4 | 11 | — |
 | [`DevTools-1M`](DevTools-1M) | 2 | 1 | — | — |
 | [`Notes`](Notes) | — | — | 18 | — |
 
@@ -263,7 +263,7 @@ flowchart LR
 | Closures | [`Notes/05`](Notes/05.%20Closures%20and%20Callbacks%20and%20related.md) | [`Quiz/18`](GFE-75/Quiz/18.%20Closures%20and%20Lexical%20Environment%20(Scope).md) | [`033 Curry`](GFE-3M/Functions/033.%20Curry) |
 | Promises | [`Notes/10`](Notes/10.%20Promises.md) | [`Quiz/17`](GFE-75/Quiz/17.%20script%20-%3E%20defer,%20async%20and%20module.md) | [`007 promiseAll`](GFE-3M/Functions/007.%20promiseAll) |
 | `this` / bind | [`Notes/13`](Notes/13.%20Call,%20Bind,%20Apply%20etc.md) | — | [`018 Bind`](GFE-3M/Functions/018.%20Bind%20Polyfill) · [`GFE-75 call`](GFE-75/Functions/03.%20Prototype.call()%20Polyfill) |
-| DOM traversal | [`Notes/02`](Notes/02.%20traversing.md) | [`Quiz/15`](GFE-75/Quiz/15.%20Event%20Delegation.md) | [`021 DOM Trees`](GFE-3M/Functions/021.%20Identical%20DOM%20Trees) |
+| DOM traversal | [`Notes/02`](Notes/02.%20traversing.md) | [`Quiz/15`](GFE-75/Quiz/15.%20Event%20Delegation.md) · [`Quiz/19`](GFE-75/Quiz/19.%20Event%20Bubbling.md) | [`021 DOM Trees`](GFE-3M/Functions/021.%20Identical%20DOM%20Trees) |
 | Storage | [`Notes/18`](Notes/18.%20Storage%20Comparisons.md) | [`Quiz/16`](GFE-75/Quiz/16.%20Cookies,%20local,%20session.md) | — |
 | Forms | [`Notes/16`](Notes/16.%20Form%20Data%20and%20HTML%20inputs.md) | — | [`027 Contact Form`](GFE-3M/UI/027.%20Contact%20Form) |
 | Layout | — | [`Quiz/12–13`](GFE-75/Quiz/12.%20CSS%20display%20properties.md) | [`011 Holy Grail`](GFE-3M/UI/011.%20Holy%20Grail) |
@@ -285,6 +285,7 @@ flowchart LR
 | 16 | Cookies, `localStorage`, `sessionStorage` | [`GFE-75/Quiz/16. Cookies, local, session.md`](GFE-75/Quiz/16.%20Cookies,%20local,%20session.md) |
 | 17 | `<script>` defer / async / module | [`GFE-75/Quiz/17. script -> defer, async and module.md`](GFE-75/Quiz/17.%20script%20-%3E%20defer,%20async%20and%20module.md) |
 | 18 | Closures & lexical scope | [`GFE-75/Quiz/18. Closures and Lexical Environment (Scope).md`](GFE-75/Quiz/18.%20Closures%20and%20Lexical%20Environment%20(Scope).md) |
+| 19 | Event bubbling | [`GFE-75/Quiz/19. Event Bubbling.md`](GFE-75/Quiz/19.%20Event%20Bubbling.md) |
 
 **GFE-3M quiz:** [`GFE-3M/Quizzes/CSS/01. Box Model.md`](GFE-3M/Quizzes/CSS/01.%20Box%20Model.md)
 
