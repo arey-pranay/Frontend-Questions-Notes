@@ -1,0 +1,9 @@
+body {
+  font-family: sans-serif;
+}
+
+.selected {
+  cursor: not-allowed;
+  background-color: #929292;
+  color: white;
+}
